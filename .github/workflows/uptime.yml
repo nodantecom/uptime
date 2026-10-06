@@ -1,0 +1,30 @@
+name: uptime
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+concurrency: uptime
+permissions:
+  contents: write
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Kontrol
+        env:
+          TG_TOKEN: ${{ secrets.TG_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+        run: ./check.sh
+      # Durum değiştiyse kaydet; 60 gün commit olmazsa GitHub zamanlamayı kapatır, ayda bir canlı tutma commit'i atılır.
+      - name: Kaydet
+        run: |
+          git config user.name "uptime-bot"
+          git config user.email "uptime-bot@users.noreply.github.com"
+          if ! git diff --quiet state.txt 2>/dev/null || [ -n "$(git status --porcelain state.txt)" ]; then
+            git add state.txt && git commit -m "durum değişti" -q
+          elif [ $(( $(date +%s) - $(git log -1 --format=%ct) )) -gt 2592000 ]; then
+            date -u +%F > keepalive.txt && git add keepalive.txt && git commit -m "canlı tutma" -q
+          fi
+          git push -q || true
